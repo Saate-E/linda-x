@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, Route, Routes } from "react-router-dom";
+import { supabase } from "./services/supaBase";
 
 const galleryItems = [
   "Community outreach in Linda Ward",
@@ -41,7 +42,13 @@ const supportButtonClasses =
 function WhyLindaIcon({ type }) {
   if (type === "empowerment") {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M12 3l2.3 4.7L19 10l-4.7 2.3L12 17l-2.3-4.7L5 10l4.7-2.3L12 3z" />
       </svg>
     );
@@ -49,7 +56,13 @@ function WhyLindaIcon({ type }) {
 
   if (type === "education") {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M3 8l9-4 9 4-9 4-9-4z" />
         <path d="M7 10v5c0 1.8 2.2 3 5 3s5-1.2 5-3v-5" />
       </svg>
@@ -58,14 +71,26 @@ function WhyLindaIcon({ type }) {
 
   if (type === "healthcare") {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-5 w-5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
       </svg>
     );
   }
 
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
       <path d="M4 12h16" />
       <path d="M12 4v16" />
       <circle cx="12" cy="12" r="9" />
@@ -74,28 +99,56 @@ function WhyLindaIcon({ type }) {
 }
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 5) {
-  const words = text.trim().split(" ");
+  const tokens = text.trim().split(/\s+/);
   let line = "";
   let lineCount = 1;
 
-  for (const word of words) {
-    const testLine = `${line}${word} `;
-    const metrics = ctx.measureText(testLine);
+  const drawLine = () => {
+    ctx.fillText(line.trim(), x, y);
+    line = "";
+    y += lineHeight;
+    lineCount += 1;
+  };
 
-    if (metrics.width > maxWidth && line) {
-      ctx.fillText(line.trim(), x, y);
-      line = `${word} `;
-      y += lineHeight;
-      lineCount += 1;
-      if (lineCount > maxLines) return;
-    } else {
-      line = testLine;
+  for (const token of tokens) {
+    let word = token;
+
+    while (word) {
+      const separator = line ? " " : "";
+      const testLine = `${line}${separator}${word}`;
+
+      if (ctx.measureText(testLine).width <= maxWidth) {
+        line = testLine;
+        word = "";
+        continue;
+      }
+
+      if (line) {
+        drawLine();
+        if (lineCount > maxLines) return y;
+        continue;
+      }
+
+      let slice = "";
+      for (const character of word) {
+        if (ctx.measureText(`${slice}${character}`).width > maxWidth) break;
+        slice += character;
+      }
+
+      if (!slice) return y;
+      line = slice;
+      word = word.slice(slice.length);
+      drawLine();
+      if (lineCount > maxLines) return y;
     }
   }
 
   if (line && lineCount <= maxLines) {
     ctx.fillText(line.trim(), x, y);
+    y += lineHeight;
   }
+
+  return y;
 }
 
 function drawImageCover(ctx, image, x, y, width, height) {
@@ -228,18 +281,26 @@ function LandingPage() {
           </p>
         </section>
 
-        <section id="why-linda" className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6">
+        <section
+          id="why-linda"
+          className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6"
+        >
           <h2 className="mb-8 text-3xl font-bold">Why Linda</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {whyLindaItems.map((item) => (
-              <article key={item.title} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <article
+                key={item.title}
+                className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+              >
                 <h3 className="mb-3 flex items-center gap-2 text-lg font-bold text-[#087e89]">
                   <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-cyan-100 text-[#087e89]">
                     <WhyLindaIcon type={item.icon} />
                   </span>
                   {item.title}
                 </h3>
-                <p className="text-sm leading-relaxed text-slate-600">{item.description}</p>
+                <p className="text-sm leading-relaxed text-slate-600">
+                  {item.description}
+                </p>
               </article>
             ))}
           </div>
@@ -277,126 +338,139 @@ function LandingPage() {
 
 function SupportPage() {
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [photo, setPhoto] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [message, setMessage] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
   const noteCharacterCount = countCharacters(note);
-  const hasTooManyCharacters = noteCharacterCount > 50;
+  const hasTooManyCharacters = noteCharacterCount > 150;
+
+  const generateCertificate = async (photoFile, nameValue, noteValue) => {
+    const [templateImage, supporterImage] = await Promise.all([
+      loadImageFromUrl("/flyer.png"),
+      loadImageFromFile(photoFile),
+    ]);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = templateImage.naturalWidth || templateImage.width;
+    canvas.height = templateImage.naturalHeight || templateImage.height;
+    const ctx = canvas.getContext("2d");
+
+    ctx.drawImage(templateImage, 0, 0, canvas.width, canvas.height);
+
+    // Layout zones tuned for a 1080x1350 flyer and scaled for any template size.
+    const baseWidth = 1080;
+    const baseHeight = 1350;
+    const scaleX = canvas.width / baseWidth;
+    const scaleY = canvas.height / baseHeight;
+
+    const imageZone = {
+      x: 640 * scaleX,
+      y: 920 * scaleY,
+      width: 363 * scaleX,
+      height: 329 * scaleY,
+    };
+
+    const textZone = {
+      x: canvas.width * 0.065,
+      y: canvas.height * 0.74,
+      maxWidth: canvas.width * 0.42,
+      lineHeight: canvas.height * 0.03,
+    };
+
+    const photoDiameter = Math.min(imageZone.width, imageZone.height);
+    const photoX = imageZone.x + (imageZone.width - photoDiameter) / 2;
+    const photoY = imageZone.y + (imageZone.height - photoDiameter) / 2;
+    drawCircularImageCover(ctx, supporterImage, photoX, photoY, photoDiameter);
+
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.font = `200 ${Math.round(canvas.height * 0.018)}px Inter, Segoe UI, sans-serif`;
+    const nameY = wrapText(
+      ctx,
+      noteValue.trim(),
+      textZone.x,
+      textZone.y,
+      textZone.maxWidth,
+      canvas.height * 0.026,
+      3,
+    );
+
+    ctx.font = `700 ${Math.round(canvas.height * 0.021)}px Inter, Segoe UI, sans-serif`;
+    ctx.fillText(nameValue.trim(), textZone.x, nameY + 8 * scaleY);
+    ctx.textAlign = "end";
+    ctx.textBaseline = "top";
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+
+    return canvas.toDataURL("image/png");
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!photo || !name.trim() || !note.trim()) {
+    if (
+      !photo ||
+      !name.trim() ||
+      !email.trim() ||
+      !phone.trim() ||
+      !note.trim()
+    ) {
       setMessage("Please fill all fields and upload your picture.");
       return;
     }
 
     if (hasTooManyCharacters) {
-      setMessage("Your support note must not be more than 50 characters.");
+      setMessage("Your support note must not be more than 150 characters.");
       return;
     }
 
     try {
       setIsGenerating(true);
-      setMessage("Generating your certificate...");
+      setMessage("Generating certificate and saving your support...");
 
-      const [templateImage, supporterImage] = await Promise.all([
-        loadImageFromUrl("/flyer.png"),
-        loadImageFromFile(photo),
-      ]);
+      // Generate certificate
+      const certificateImage = await generateCertificate(photo, name, note);
 
-      const canvas = document.createElement("canvas");
-      canvas.width = templateImage.naturalWidth || templateImage.width;
-      canvas.height = templateImage.naturalHeight || templateImage.height;
-      const ctx = canvas.getContext("2d");
+      const { error } = await supabase.from("support").insert({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+      });
 
-      ctx.drawImage(templateImage, 0, 0, canvas.width, canvas.height);
+      if (error) throw error;
 
-      // Layout zones tuned for a 1080x1350 flyer and scaled for any template size.
-      const baseWidth = 1080;
-      const baseHeight = 1350;
-      const scaleX = canvas.width / baseWidth;
-      const scaleY = canvas.height / baseHeight;
-
-      const imageZone = {
-        x: 640 * scaleX,
-        y: 920 * scaleY,
-        width: 363 * scaleX,
-        height: 329 * scaleY,
-      };
-
-      const textZone = {
-        x: canvas.width * 0.065,
-        y: canvas.height * 0.74,
-        maxWidth: canvas.width * 0.42,
-        lineHeight: canvas.height * 0.03,
-      };
-
-      const nameBox = {
-        x: (canvas.width - Math.min(canvas.width, 1090 * scaleX)) / 2,
-        y: canvas.height - 101 * scaleY,
-        width: Math.min(canvas.width, 1090 * scaleX),
-        height: 101 * scaleY,
-      };
-
-      const photoDiameter = Math.min(imageZone.width, imageZone.height);
-      const photoX = imageZone.x + (imageZone.width - photoDiameter) / 2;
-      const photoY = imageZone.y + (imageZone.height - photoDiameter) / 2;
-      drawCircularImageCover(
-        ctx,
-        supporterImage,
-        photoX,
-        photoY,
-        photoDiameter,
-      );
-
-      ctx.fillStyle = "#073b44";
-      ctx.textBaseline = "top";
-      ctx.font = `600 ${Math.round(canvas.height * 0.028)}px Inter, Segoe UI, sans-serif`;
-      wrapText(
-        ctx,
-        note.trim(),
-        textZone.x,
-        textZone.y,
-        textZone.maxWidth,
-        textZone.lineHeight,
-        3,
-      );
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = `700 ${Math.round(canvas.height * 0.027)}px Inter, Segoe UI, sans-serif`;
-      ctx.shadowColor = "rgba(0, 0, 0, 0.35)";
-      ctx.shadowBlur = Math.max(2, Math.round(canvas.height * 0.002));
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(
-        name.trim(),
-        nameBox.x + nameBox.width / 2,
-        nameBox.y + nameBox.height / 2,
-      );
-      ctx.textAlign = "start";
-      ctx.textBaseline = "top";
-      ctx.shadowColor = "transparent";
-      ctx.shadowBlur = 0;
-
-      const dataURL = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
-      downloadLink.href = dataURL;
-      downloadLink.download = `${name.trim().replace(/\s+/g, "_")}_support_certificate.png`;
-      downloadLink.click();
-
-      setMessage("Certificate generated and downloaded successfully.");
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
+      setPreviewData({
+        certificateImage,
+        name,
+        email,
+        phone,
+        note,
+      });
+      setShowPreview(true);
+      setMessage("");
     } catch (error) {
+      console.error(error);
       setMessage(
-        "Could not generate certificate. Add your designed flyer as public/flyer.png and try again.",
+        "Could not process your submission. Please check your details and try again.",
       );
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleDownload = () => {
+    if (!previewData) return;
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = previewData.certificateImage;
+    downloadLink.download = `${previewData.name.trim().replace(/\s+/g, "_")}_support_certificate.png`;
+    downloadLink.click();
   };
 
   return (
@@ -421,86 +495,178 @@ function SupportPage() {
       <main>
         <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-            <h2 className="mb-2 text-3xl font-bold">Support Hon. Linda</h2>
-            <p className="mb-8 text-slate-600">
-              Fill this form and download your personalized campaign flyer
-              certificate.
-            </p>
-            <form className="space-y-5" onSubmit={handleSubmit}>
-              <div>
-                <label
-                  htmlFor="photo"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Upload your picture
-                </label>
-                <input
-                  id="photo"
-                  type="file"
-                  accept="image/*"
-                  onChange={(event) =>
-                    setPhoto(event.target.files?.[0] ?? null)
-                  }
-                  className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-[#009ba5] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#087e89]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="name"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Your name
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Enter your full name"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-cyan-200 focus:ring-2"
-                  required
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="note"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Why are you supporting Hon. Linda?
-                </label>
-                <textarea
-                  id="note"
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  maxLength={50}
-                  rows={4}
-                  placeholder="Write a short message of support..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-cyan-200 focus:ring-2"
-                  required
-                />
-                <p
-                  className={`mt-1 text-xs ${hasTooManyCharacters ? "text-red-600" : "text-slate-500"}`}
-                >
-                  {noteCharacterCount}/50 characters
+            {!showPreview ? (
+              <>
+                <h2 className="mb-2 text-3xl font-bold">Support Hon. Linda</h2>
+                <p className="mb-8 text-slate-600">
+                  Fill this form and download your personalized campaign flyer
+                  certificate.
                 </p>
-              </div>
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                  <div>
+                    <label
+                      htmlFor="photo"
+                      className="mb-2 block text-sm font-semibold text-slate-700"
+                    >
+                      Upload your picture
+                    </label>
+                    <input
+                      id="photo"
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) =>
+                        setPhoto(event.target.files?.[0] ?? null)
+                      }
+                      className="block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded-md file:border-0 file:bg-[#009ba5] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-[#087e89]"
+                      required
+                    />
+                  </div>
 
-              <button
-                type="submit"
-                disabled={isGenerating}
-                className={`${supportButtonClasses} w-full sm:w-auto`}
-              >
-                {isGenerating ? "Generating..." : "Submit and download flyer"}
-              </button>
-            </form>
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="mb-2 block text-sm font-semibold text-slate-700"
+                    >
+                      Your name
+                    </label>
+                    <input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      placeholder="Enter your full name"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-cyan-200 focus:ring-2"
+                      required
+                    />
+                  </div>
 
-            {message && (
-              <p className="mt-4 rounded-md bg-slate-100 p-3 text-sm font-medium text-slate-700">
-                {message}
-              </p>
+                  <div>
+                    <label
+                      htmlFor="name"
+                      className="mb-2 block text-sm font-semibold text-slate-700"
+                    >
+                      Your email
+                    </label>
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="Enter your email address"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-cyan-200 focus:ring-2"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="phone"
+                      className="mb-2 block text-sm font-semibold text-slate-700"
+                    >
+                      Your phone number
+                    </label>
+                    <input
+                      id="phone"
+                      type="tel"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      placeholder="Enter your phone number"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-cyan-200 focus:ring-2"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="note"
+                      className="mb-2 block text-sm font-semibold text-slate-700"
+                    >
+                      Why are you supporting Hon. Linda?
+                    </label>
+                    <textarea
+                      id="note"
+                      value={note}
+                      onChange={(event) => setNote(event.target.value)}
+                      maxLength={150}
+                      rows={4}
+                      placeholder="Write a your short message of support..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-cyan-200 focus:ring-2"
+                      required
+                    />
+                    <p
+                      className={`mt-1 text-xs ${hasTooManyCharacters ? "text-red-600" : "text-slate-500"}`}
+                    >
+                      {noteCharacterCount}/150 characters
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isGenerating}
+                    className={`${supportButtonClasses} w-full sm:w-auto`}
+                  >
+                    {isGenerating ? "Generating..." : "Submit"}
+                  </button>
+                </form>
+
+                {message && (
+                  <p className="mt-4 rounded-md bg-slate-100 p-3 text-sm font-medium text-slate-700">
+                    {message}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                {/* <h2 className="mb-2 text-3xl font-bold">Your Certificate</h2>
+                <p className="mb-8 text-slate-600">
+                  Your support has been recorded. Download your certificate to
+                  share your support.
+                </p> */}
+
+                <div className="mb-8 flex flex-col gap-6 md:flex-row">
+                  <div className="flex-1">
+                    <div className="rounded-lg border p-4">
+                      <img
+                        src={previewData?.certificateImage}
+                        alt="Flyer preview"
+                        className="w-full rounded"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4 md:w-80">
+                    <div className="space-y-3 pt-4">
+                      <button
+                        onClick={handleDownload}
+                        className={`${supportButtonClasses} w-full`}
+                      >
+                        Download Flyer
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowPreview(false);
+                          setPreviewData(null);
+                          setName("");
+                          setEmail("");
+                          setPhone("");
+                          setNote("");
+                          setPhoto(null);
+                          setMessage("");
+                        }}
+                        className="w-full rounded-md border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Back
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {message && (
+                  <p className="rounded-md bg-slate-100 p-3 text-sm font-medium text-slate-700">
+                    {message}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </section>
